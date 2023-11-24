@@ -2,10 +2,12 @@
 /// @brief   Test fuctions for multi function display OBP60
 /// @example main.cpp
 
-#include <FastLED.h>
-#include <PCF8574.h>
-#include <Wire.h>
-#include <RTClib.h>
+#include <Arduino.h>
+#include "driver/twai.h"  // Driver for CAN bus
+#include <FastLED.h>      // Driver for WS2812 RGB LED
+#include <PCF8574.h>      // Driver for PCF8574 output modul from Horter
+#include <Wire.h>         // I2C
+#include <RTClib.h>       // Driver for DS1388 RTC
 
 
 // How many leds in your strip?
@@ -27,37 +29,62 @@ RTC_DS1388 ds1388;
 CRGB fled[NUM_FLED];      // Flash LED
 CRGB backlight[NUM_BL];   // Backlight
 
+// CAN bus definitions
+#define RX_PIN 3
+#define TX_PIN 46
+
 int i = 0;  // Loop counter
 
 void setup() {
-//  delay(5000);  // Wait for start the serial terminal
+  delay(5000);  // Wait for start the serial terminal
 
+  // Init serial ports
   Serial.begin(115200);                     // USB serial port
   Serial1.begin(9600, SERIAL_8N1, 2, 1);    // GPS serial port (input)
   Serial2.begin(9600, SERIAL_8N1, 8, 17);   // NMEA0183 serial port (output)
   
+  // Init PCF8574 digital outputs
   Wire.setClock(10000UL);   // Set I2C clock on 10 kHz
   if(pcf8574_Out.begin()){  // Initialize PCF8574
     pcf8574_Out.write8(255);// Clear all outputs
   }
 
-  if(ds1388.begin()){       // Initialze DS1388
+  // Init DS1388 RTC
+  if(ds1388.begin()){
     Serial.print("__DATE__: ");
     Serial.println(__DATE__);
     Serial.print("__TIME__: ");
     Serial.println(__TIME__);
-    ds1388.adjust(DateTime(__DATE__, __TIME__));  // Set date and time from PC file time
+    uint year = ds1388.now().year();
+    if(year < 2023){
+      ds1388.adjust(DateTime(__DATE__, __TIME__));  // Set date and time from PC file time
+      Serial.print("Year is: ");
+      Serial.println(year, DEC);
+      Serial.println("Set time over file time");
+    }
+    else{
+      Serial.println("Time is actual");
+    }
   }
 
+  // Init digital pins
   pinMode(5, OUTPUT);
-  digitalWrite(5, HIGH);  //Power line on for 5V and 3.3V
-        
+  digitalWrite(5, HIGH);  //Power line on for 5V and 3.3V       
   pinMode(18, OUTPUT);
   digitalWrite(18, HIGH); // Set 183DIR on high = transmit 
 
+  // Init RGB LEDs
   FastLED.addLeds<WS2812B, DATA_PIN1, GRB>(fled, NUM_FLED);
   FastLED.addLeds<WS2812B, DATA_PIN2, GRB>(backlight, NUM_BL);
 
+  // Init CAN
+  twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TX_PIN, (gpio_num_t)RX_PIN, TWAI_MODE_LISTEN_ONLY);  // TWAI_MODE_NORMAL, TWAI_MODE_NO_ACK or TWAI_MODE_LISTEN_ONLY
+  twai_timing_config_t t_config  = TWAI_TIMING_CONFIG_250KBITS();
+  twai_filter_config_t f_config  = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+  twai_driver_install(&g_config, &t_config, &f_config);
+  twai_start();
+
+  // Ready to start
   tone(16, 4000); // Buzzer GPIO16 4kHz
   delay(200);     // Duration 200ms
   noTone(16);     // Disable beep
@@ -150,7 +177,7 @@ void loop() {
   else{
     noTone(16); // Der Ton wird abgeschaltet
   }
-
+/*
   if (Serial1.available()) {
     char data = Serial1.read();
     Serial.write(data);   // Write USB
@@ -175,6 +202,7 @@ void loop() {
         }
     }
   }
+*/
   // Plug & Play safe I2C bus communication
   Wire.setClock(100000UL);  // Set I2C clock on 10 kHz
   if(pcf8574_Out.begin()){  // Check the module is present
@@ -182,23 +210,38 @@ void loop() {
     i++;                    // Increment loop counter
   }
 
+  // Receive next CAN frame from queue
+  twai_message_t message;
+  
+  if (twai_receive(&message, 0) == ESP_OK) {
+    // Board LED
 /*
-  // Read an show date and time
-  Wire.setClock(10000UL);   // Set I2C clock on 10 kHz
-  if(ds1388.begin()){       // Check the module is present
-    DateTime now = ds1388.now();
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(' ');
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
+    boardled[0] = CRGB::Blue;
+    FastLED.setBrightness(255);
+    FastLED.show();
+    delay(1);
+    boardled[0] = CRGB::Black;
+    FastLED.show();
+*/
+    // Read Values
+    Serial.println();
+    Serial.print("0x");
+    Serial.print(message.identifier, HEX);
+    Serial.print(",");
+    Serial.print(message.extd);
+    Serial.print(",");
+    Serial.print(message.rtr);
+    Serial.print(",");
+    Serial.print(message.data_length_code);
+    
+    for(int i=0;i<message.data_length_code;i++) {
+      Serial.print(",0x");
+      if (message.data[i]<=0x0F) {
+        Serial.print(0);
+      }
+      Serial.print(message.data[i], HEX);
+    }
     Serial.println();
   }
-*/
+
 }
