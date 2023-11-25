@@ -60,13 +60,13 @@ int i = 0;  // Loop counter
 
 void setup() {
 
-  delay(10000);
   // Init digital pins
+  delay(1000);
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);  //Power line on for 5V and 3.3V       
   pinMode(18, OUTPUT);
   digitalWrite(18, HIGH); // Set 183DIR on high = transmit
-  delay(3000);
+  delay(100);
 
   // Init RGB LEDs
   FastLED.addLeds<WS2812B, DATA_PIN1, GRB>(fled, NUM_FLED);
@@ -92,20 +92,18 @@ void setup() {
       ds1388.adjust(DateTime(__DATE__, __TIME__));  // Set date and time from PC file time
     }
   }
-/*
+
   // Init E-Ink display
   display.init();
   display.setTextColor(GxEPD_BLACK);
   display.setRotation(0);
   display.drawExampleBitmap(gImage_Logo_OBP_400x300_sw, 0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, GxEPD_WHITE);
   display.update();
-*/
+
   // Init serial ports
-  /*
   Serial.begin(115200);                     // USB serial port
   Serial1.begin(9600, SERIAL_8N1, 2, 1);    // GPS serial port (input)
   Serial2.begin(9600, SERIAL_8N1, 8, 17);   // NMEA0183 serial port (output)
-  */
 
   // Ready to start
   tone(16, 4000); // Buzzer GPIO16 4kHz
@@ -154,8 +152,6 @@ void loop() {
 
  // touchReadAll();
 
- while(1){}
-
   int touchResult = touchRequest();
   FastLED.setBrightness(255);
   if(touchResult == 1){
@@ -202,7 +198,7 @@ void loop() {
   else{
     noTone(16); // Der Ton wird abgeschaltet
   }
-/*
+
   if (Serial1.available()) {
     char data = Serial1.read();
     Serial.write(data);   // Write USB
@@ -227,7 +223,7 @@ void loop() {
         }
     }
   }
-*/
+
   // Plug & Play safe I2C bus communication
   Wire.setClock(100000UL);  // Set I2C clock on 10 kHz
   if(pcf8574_Out.begin()){  // Check the module is present
