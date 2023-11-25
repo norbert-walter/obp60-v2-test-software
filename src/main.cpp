@@ -8,7 +8,18 @@
 #include <PCF8574.h>      // Driver for PCF8574 output modul from Horter
 #include <Wire.h>         // I2C
 #include <RTClib.h>       // Driver for DS1388 RTC
+#include <GxEPD.h>
+#include <GxGDEW042T2/GxGDEW042T2.h> // 4.2" Waveshare S/W
+#include <GxIO/GxIO_SPI/GxIO_SPI.h>
+#include <GxIO/GxIO.h>
 
+// FreeFonts from Adafruit_GFX
+#include "Ubuntu_Bold8pt7b.h"
+#include "Ubuntu_Bold12pt7b.h"
+#include "Ubuntu_Bold16pt7b.h"
+#include "Ubuntu_Bold20pt7b.h"
+// OBP logo
+#include "Logo_OBP_400x300_sw.h"
 
 // How many leds in your strip?
 #define NUM_FLED 1  // Flash LED
@@ -33,45 +44,29 @@ CRGB backlight[NUM_BL];   // Backlight
 #define RX_PIN 3
 #define TX_PIN 46
 
+// E-Ink pin definition
+#define OBP_SPI_CS 39   // CS
+#define OBP_SPI_DC 40   // DC
+#define OBP_SPI_RST 41  // RST
+#define OBP_SPI_BUSY 42 // BUSY
+
+// SPI pin definitions for E-Ink display class
+GxIO_Class io(SPI, OBP_SPI_CS, OBP_SPI_DC, OBP_SPI_RST);  // SPI, CS, DC, RST
+GxEPD_Class display(io, OBP_SPI_RST, OBP_SPI_BUSY);       // io, RST, BUSY
+
+
+
 int i = 0;  // Loop counter
 
 void setup() {
-  delay(5000);  // Wait for start the serial terminal
 
-  // Init serial ports
-  Serial.begin(115200);                     // USB serial port
-  Serial1.begin(9600, SERIAL_8N1, 2, 1);    // GPS serial port (input)
-  Serial2.begin(9600, SERIAL_8N1, 8, 17);   // NMEA0183 serial port (output)
-  
-  // Init PCF8574 digital outputs
-  Wire.setClock(10000UL);   // Set I2C clock on 10 kHz
-  if(pcf8574_Out.begin()){  // Initialize PCF8574
-    pcf8574_Out.write8(255);// Clear all outputs
-  }
-
-  // Init DS1388 RTC
-  if(ds1388.begin()){
-    Serial.print("__DATE__: ");
-    Serial.println(__DATE__);
-    Serial.print("__TIME__: ");
-    Serial.println(__TIME__);
-    uint year = ds1388.now().year();
-    if(year < 2023){
-      ds1388.adjust(DateTime(__DATE__, __TIME__));  // Set date and time from PC file time
-      Serial.print("Year is: ");
-      Serial.println(year, DEC);
-      Serial.println("Set time over file time");
-    }
-    else{
-      Serial.println("Time is actual");
-    }
-  }
-
+  delay(10000);
   // Init digital pins
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);  //Power line on for 5V and 3.3V       
   pinMode(18, OUTPUT);
-  digitalWrite(18, HIGH); // Set 183DIR on high = transmit 
+  digitalWrite(18, HIGH); // Set 183DIR on high = transmit
+  delay(3000);
 
   // Init RGB LEDs
   FastLED.addLeds<WS2812B, DATA_PIN1, GRB>(fled, NUM_FLED);
@@ -83,6 +78,34 @@ void setup() {
   twai_filter_config_t f_config  = TWAI_FILTER_CONFIG_ACCEPT_ALL();
   twai_driver_install(&g_config, &t_config, &f_config);
   twai_start();
+
+  // Init PCF8574 digital outputs
+  Wire.setClock(10000UL);   // Set I2C clock on 10 kHz
+  if(pcf8574_Out.begin()){  // Initialize PCF8574
+    pcf8574_Out.write8(255);// Clear all outputs
+  }
+
+  // Init DS1388 RTC
+  if(ds1388.begin()){
+    uint year = ds1388.now().year();
+    if(year < 2023){
+      ds1388.adjust(DateTime(__DATE__, __TIME__));  // Set date and time from PC file time
+    }
+  }
+/*
+  // Init E-Ink display
+  display.init();
+  display.setTextColor(GxEPD_BLACK);
+  display.setRotation(0);
+  display.drawExampleBitmap(gImage_Logo_OBP_400x300_sw, 0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, GxEPD_WHITE);
+  display.update();
+*/
+  // Init serial ports
+  /*
+  Serial.begin(115200);                     // USB serial port
+  Serial1.begin(9600, SERIAL_8N1, 2, 1);    // GPS serial port (input)
+  Serial2.begin(9600, SERIAL_8N1, 8, 17);   // NMEA0183 serial port (output)
+  */
 
   // Ready to start
   tone(16, 4000); // Buzzer GPIO16 4kHz
@@ -130,6 +153,8 @@ int touchRequest(){
 void loop() {
 
  // touchReadAll();
+
+ while(1){}
 
   int touchResult = touchRequest();
   FastLED.setBrightness(255);
