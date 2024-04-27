@@ -8,10 +8,7 @@
 #include <PCF8574.h>      // Driver for PCF8574 output modul from Horter
 #include <Wire.h>         // I2C
 #include <RTClib.h>       // Driver for DS1388 RTC
-#include <GxEPD.h>
-#include <GxGDEW042T2/GxGDEW042T2.h> // 4.2" Waveshare S/W
-#include <GxIO/GxIO_SPI/GxIO_SPI.h>
-#include <GxIO/GxIO.h>
+#include <GxEPD2_BW.h>    // E-Ink display
 
 // FreeFonts from Adafruit_GFX
 #include "Ubuntu_Bold8pt7b.h"
@@ -45,16 +42,16 @@ CRGB backlight[NUM_BL];   // Backlight
 #define TX_PIN 46
 
 // E-Ink pin definition
-#define OBP_SPI_CS 39   // CS
-#define OBP_SPI_DC 40   // DC
-#define OBP_SPI_RST 41  // RST
-#define OBP_SPI_BUSY 42 // BUSY
+#define OBP_SPI_CS 39     // CS
+#define OBP_SPI_DC 40     // DC
+#define OBP_SPI_RST 41    // RST
+#define OBP_SPI_BUSY 42   // BUSY
+#define GxEPD_WIDTH 400   // Display width
+#define GxEPD_HEIGHT 300  // Display height
 
 // SPI pin definitions for E-Ink display class
-GxIO_Class io(SPI, OBP_SPI_CS, OBP_SPI_DC, OBP_SPI_RST);  // SPI, CS, DC, RST
-GxEPD_Class display(io, OBP_SPI_RST, OBP_SPI_BUSY);       // io, RST, BUSY
-
-
+// GxEPD2_BW<GxEPD2_420_GYE042A87, GxEPD2_420_GYE042A87::HEIGHT> display(GxEPD2_420_GYE042A87(OBP_SPI_CS, OBP_SPI_DC, OBP_SPI_RST, OBP_SPI_BUSY)); // GYE042A87, 400x300, SSD1683 (no inking)
+GxEPD2_BW<GxEPD2_420_GDEY042T81, GxEPD2_420_GDEY042T81::HEIGHT> display(GxEPD2_420_GDEY042T81(OBP_SPI_CS, OBP_SPI_DC, OBP_SPI_RST, OBP_SPI_BUSY)); // GDEY042T81, 400x300, SSD1683 (no inking)
 
 int i = 0;  // Loop counter
 
@@ -94,11 +91,15 @@ void setup() {
   }
 
   // Init E-Ink display
-  display.init();
+  display.init(115200);
   display.setTextColor(GxEPD_BLACK);
   display.setRotation(0);
-  display.drawExampleBitmap(gImage_Logo_OBP_400x300_sw, 0, 0, GxEPD_WIDTH, GxEPD_HEIGHT, GxEPD_WHITE);
-  display.update();
+  display.setFullWindow();
+  display.firstPage();
+  display.fillScreen(GxEPD_WHITE);
+  display.nextPage();
+  display.drawBitmap(0, 0, gImage_Logo_OBP_400x300_sw, display.width(), display.height(), GxEPD_BLACK);
+  display.nextPage();
 
   // Init serial ports
   Serial.begin(115200);                     // USB serial port
@@ -110,15 +111,53 @@ void setup() {
   delay(200);     // Duration 200ms
   noTone(16);     // Disable beep
   Serial.println("Boot Beep 4kHz");
+
+  // Scann I2C bus 
+  byte error, address;
+  int nDevices;
+  Serial.println("Scanning I2C bus...");
+  nDevices = 0;
+  for(address = 1; address < 127; address++ ) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0) {
+      Serial.print("I2C device found at address 0x");
+      if (address<16) {
+        Serial.print("0");
+      }
+      Serial.println(address,HEX);
+      nDevices++;
+    }
+    else if (error==4) {
+      Serial.print("Unknow error at address 0x");
+      if (address<16) {
+        Serial.print("0");
+      }
+      Serial.println(address,HEX);
+    }    
+  }
+  if (nDevices == 0) {
+    Serial.println("No I2C devices found\n");
+  }
+  else {
+    Serial.println("done\n");
+  }
+  delay(10000);
+
 }
 
 void touchReadAll(){
-  Serial.println("Read Touch:");
-  Serial.println(touchRead(14));
-  Serial.println(touchRead(13));
-  Serial.println(touchRead(12));
-  Serial.println(touchRead(11));
-  Serial.println(touchRead(10));
+  Serial.print("Read Touch:");
+  Serial.print(touchRead(14));
+  Serial.print(" ");
+  Serial.print(touchRead(13));
+  Serial.print(" ");
+  Serial.print(touchRead(12));
+  Serial.print(" ");
+  Serial.print(touchRead(11));
+  Serial.print(" ");
+  Serial.print(touchRead(10));
+  Serial.print(" ");
   Serial.println(touchRead(9));
 }
 
@@ -150,7 +189,7 @@ int touchRequest(){
 
 void loop() {
 
- // touchReadAll();
+  touchReadAll();
 
   int touchResult = touchRequest();
   FastLED.setBrightness(255);
@@ -223,13 +262,14 @@ void loop() {
         }
     }
   }
-
+/*
   // Plug & Play safe I2C bus communication
   Wire.setClock(100000UL);  // Set I2C clock on 10 kHz
   if(pcf8574_Out.begin()){  // Check the module is present
     pcf8574_Out.write8(~i); // Loop counter output
     i++;                    // Increment loop counter
   }
+*/
 
   // Receive next CAN frame from queue
   twai_message_t message;
